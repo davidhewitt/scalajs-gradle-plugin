@@ -1,0 +1,13 @@
+group 'scalajs-gradle-plugin'
+version '1.0-SNAPSHOT'
+
+apply plugin: 'scala'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile gradleApi()
+    compile "org.scala-js:scalajs-tools_2.11:0.6.5"
+}
