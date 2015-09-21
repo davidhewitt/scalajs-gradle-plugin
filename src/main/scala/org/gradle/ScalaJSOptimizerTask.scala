@@ -1,5 +1,8 @@
 package org.gradle
 
+import _root_.groovy.lang.Closure
+import org.codehaus.groovy.runtime.MethodClosure
+import org.gradle.api.tasks.scala.ScalaCompile
 import org.scalajs.core.tools.classpath.builder.PartialClasspathBuilder
 import org.scalajs.core.tools.io._
 import org.scalajs.core.tools.javascript.OutputMode
@@ -8,7 +11,7 @@ import org.scalajs.core.tools.sem.Semantics
 import org.scalajs.core.tools.optimizer._
 import org.scalajs.core.tools.logging.ScalaConsoleLogger
 
-import org.gradle.api.DefaultTask
+import org.gradle.api.{Action, DefaultTask}
 import org.gradle.api.tasks._
 
 import collection.JavaConversions._
@@ -16,6 +19,16 @@ import collection.JavaConversions._
 import java.io._
 
 class ScalaJSOptimizerTask extends DefaultTask {
+
+  val sourceSets = getProject.property("sourceSets").asInstanceOf[SourceSetContainer]
+
+  val scalaPlugin = getProject.getPlugins.getPlugin("scala").asInstanceOf[org.gradle.api.plugins.scala.ScalaPlugin]
+  val scalaCompileTask = getProject.getTasks.getByName(sourceSets.getByName("main").getCompileTaskName("scala")).asInstanceOf[ScalaCompile]
+
+  getProject.getTasks.withType(classOf[ScalaCompile]).foreach(task => {
+      task.doFirst(new UpdateScalaCompileOptions(this).closure)
+    }
+  )
 
   @OutputDirectory
   var outputDir = new File(getProject.getBuildDir, "fastopt")
@@ -64,9 +77,6 @@ class ScalaJSOptimizerTask extends DefaultTask {
 //    val ccp = pcp.resolve(jsDependencyFilter.value, jsManifestFilter.value)
     val ccp = pcp.resolve(identity, identity)
 
-    println(cp)
-    println(ccp.scalaJSIR)
-
     val outCP = optimizer.optimizeCP(
             ccp,
             Config(AtomicWritableFileVirtualJSFile(output))
@@ -86,4 +96,20 @@ class ScalaJSOptimizerTask extends DefaultTask {
     println("Done.")
   }
 
+}
+
+class UpdateScalaCompileOptions(sjsTask: ScalaJSOptimizerTask) {
+
+  private object ConfigClosure {
+
+    def configureScalaCompile(task: ScalaCompile): Unit = {
+      val sjsCompiler = sjsTask.getProject.getBuildscript.getConfigurations.getByName("classpath").getFiles.filter(file =>
+        file.getName.contains("scalajs-compiler")
+      ).toList(0)
+      task.getScalaCompileOptions.setAdditionalParameters(Array(s"-Xplugin:$sjsCompiler").toList)
+    }
+
+  }
+
+  val closure = new MethodClosure(ConfigClosure, "configureScalaCompile")
 }
